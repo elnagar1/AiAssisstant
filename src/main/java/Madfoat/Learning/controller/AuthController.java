@@ -20,7 +20,7 @@ public class AuthController {
 
     @GetMapping("/login")
     public String showLoginPage() {
-        return "login"; // Refers to login.html
+        return "redirect:/";
     }
 
     @GetMapping("/register")

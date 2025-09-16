@@ -32,19 +32,10 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             .authorizeHttpRequests(authorize -> authorize
-                .requestMatchers("/register", "/login", "/css/**", "/js/**", "/images/**", "/static/**").permitAll() // Allow access to registration, login, and static resources
-                .anyRequest().authenticated() // All other requests require authentication
+                .anyRequest().permitAll()
             )
-            .formLogin(form -> form
-                .loginPage("/login") // Specify custom login page
-                .defaultSuccessUrl("/", true) // Redirect to home page after successful login
-                .permitAll()
-            )
-            .logout(logout -> logout
-                .logoutUrl("/logout")
-                .logoutSuccessUrl("/login?logout") // Redirect to login page after logout
-                .permitAll()
-            )
+            .formLogin(form -> form.disable())
+            .logout(logout -> logout.disable())
             .csrf(csrf -> csrf.disable()); // Temporarily disable CSRF for easier testing, enable with proper handling in production
 
         return http.build();
