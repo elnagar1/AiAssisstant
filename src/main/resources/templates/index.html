@@ -112,6 +112,11 @@
                                     <i class="fas fa-chart-bar"></i> Jira Statistics
                                 </button>
                             </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="tab-bug-tab" data-bs-toggle="tab" data-bs-target="#tab-bug" type="button" role="tab" aria-controls="tab-bug" aria-selected="false">
+                                    <i class="fas fa-bug"></i> Generate Bug
+                                </button>
+                            </li>
                         </ul>
 
                         <div class="tab-content" id="generatorTabsContent">
@@ -1364,6 +1369,92 @@
         document.getElementById('projectSelect').addEventListener('change', function() {
             document.getElementById('loadProjectStats').disabled = !this.value;
         });
+
+        // Generate Bug Tab
+        // Tab content
+    </script>
+
+    <div class="tab-pane fade" id="tab-bug" role="tabpanel" aria-labelledby="tab-bug-tab">
+        <div class="text-center mb-4 mt-2">
+            <i class="fas fa-bug icon-large text-danger"></i>
+            <h3>Generate Bug Report</h3>
+            <p class="text-muted">أدخل نصاً وأرفق صورة (اختياري) للحصول على تقرير عطل</p>
+        </div>
+        <form id="bugForm" class="mb-4">
+            <div class="mb-3">
+                <label for="bugText" class="form-label">النص</label>
+                <textarea class="form-control" id="bugText" name="text" rows="4" placeholder="اشرح المشكلة أو الصياغة المطلوبة"></textarea>
+            </div>
+            <div class="mb-3">
+                <label for="bugImage" class="form-label">صورة (اختياري)</label>
+                <input type="file" class="form-control" id="bugImage" name="image" accept="image/*">
+            </div>
+            <div class="d-grid">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-wand-magic-sparkles"></i> Generate</button>
+            </div>
+        </form>
+        <div id="bugError" class="alert alert-danger d-none"></div>
+        <div id="bugResult" style="display:none;">
+            <div class="card bg-dark border-secondary mb-3">
+                <div class="card-body">
+                    <h5 id="bugTitle" class="card-title"></h5>
+                    <p id="bugDescription" class="card-text text-muted"></p>
+                    <h6>Steps to Reproduce</h6>
+                    <ol id="bugSteps"></ol>
+                    <div class="mt-2">
+                        <span class="badge bg-danger me-2" id="bugSeverity"></span>
+                        <span class="badge bg-info" id="bugType"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const bugForm = document.getElementById('bugForm');
+        const bugError = document.getElementById('bugError');
+        const bugResult = document.getElementById('bugResult');
+        const bugTitle = document.getElementById('bugTitle');
+        const bugDescription = document.getElementById('bugDescription');
+        const bugSteps = document.getElementById('bugSteps');
+        const bugSeverity = document.getElementById('bugSeverity');
+        const bugType = document.getElementById('bugType');
+
+        if (bugForm) {
+            bugForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                bugError.classList.add('d-none');
+                bugError.textContent = '';
+                bugResult.style.display = 'none';
+
+                const formData = new FormData();
+                formData.append('text', document.getElementById('bugText').value || '');
+                const img = document.getElementById('bugImage').files[0];
+                if (img) formData.append('image', img);
+
+                try {
+                    const res = await fetch('/api/bug/generate', { method: 'POST', body: formData });
+                    if (!res.ok) throw new Error('Failed to generate bug report');
+                    const data = await res.json();
+                    bugTitle.textContent = data.title || '';
+                    bugDescription.textContent = data.description || '';
+                    bugSteps.innerHTML = '';
+                    if (Array.isArray(data.steps)) {
+                        data.steps.forEach(s => {
+                            const li = document.createElement('li');
+                            li.textContent = s;
+                            bugSteps.appendChild(li);
+                        });
+                    }
+                    bugSeverity.textContent = data.severity || '';
+                    bugType.textContent = data.bugType || '';
+                    bugResult.style.display = 'block';
+                } catch (err) {
+                    bugError.textContent = err.message;
+                    bugError.classList.remove('d-none');
+                }
+            });
+        }
     </script>
 </body>
 </html>

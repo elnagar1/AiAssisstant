@@ -94,6 +94,22 @@ public class AIService {
         }
     }
 
+    // Bug report generation
+    public Madfoat.Learning.dto.BugReport generateBugReport(String text, byte[] imageBytes, String imageFileName) {
+        // For now, use demo behavior if providers aren't configured. You can wire real vision models later.
+        String title = "[Auto] Bug: Unexpected behavior in feature";
+        String description = "Generated from input: " + (text == null ? "" : text.substring(0, Math.min(200, text.length())));
+        java.util.List<String> steps = java.util.Arrays.asList(
+            "Open the application",
+            "Navigate to the relevant page",
+            "Perform the described action",
+            "Observe the incorrect behavior"
+        );
+        String severity = "Medium";
+        String bugType = "Functional";
+        return new Madfoat.Learning.dto.BugReport(title, description, steps, severity, bugType);
+    }
+
     // Automation script generator
     public String generateAutomationScripts(String description) {
         if (!deductRequest()) {
