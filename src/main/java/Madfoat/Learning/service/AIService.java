@@ -96,18 +96,56 @@ public class AIService {
 
     // Bug report generation
     public Madfoat.Learning.dto.BugReport generateBugReport(String text, byte[] imageBytes, String imageFileName) {
-        // For now, use demo behavior if providers aren't configured. You can wire real vision models later.
-        String title = "[Auto] Bug: Unexpected behavior in feature";
-        String description = "Generated from input: " + (text == null ? "" : text.substring(0, Math.min(200, text.length())));
-        java.util.List<String> steps = java.util.Arrays.asList(
-            "Open the application",
-            "Navigate to the relevant page",
-            "Perform the described action",
-            "Observe the incorrect behavior"
-        );
-        String severity = "Medium";
-        String bugType = "Functional";
-        return new Madfoat.Learning.dto.BugReport(title, description, steps, severity, bugType);
+        // Build instruction for strict JSON response
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("You are a senior QA. Generate a concise bug report as JSON ONLY with keys: ");
+        prompt.append("title, description, steps (array of strings), severity (Critical/High/Medium/Low), bugType (Functional/Usability/Security/Performance/Compatibility).");
+        prompt.append(" No additional text, just pure JSON.\n\n");
+        prompt.append("Input text: \n").append(text == null ? "" : text).append("\n\n");
+        if (imageBytes != null) {
+            prompt.append("An image is attached: ").append(imageFileName == null ? "image" : imageFileName).append(". If relevant, use it for more accurate details.\n");
+        }
+
+        String provider = aiProvider == null ? "demo" : aiProvider.toLowerCase();
+        String json;
+        switch (provider) {
+            case "openai":
+                json = generateWithOpenAIPrompt(prompt.toString());
+                break;
+            case "ollama":
+                json = generateWithOllamaPrompt(prompt.toString());
+                break;
+            case "huggingface":
+                json = generateWithHuggingFacePrompt(prompt.toString());
+                break;
+            case "gemini":
+                json = generateWithGeminiPrompt(prompt.toString());
+                break;
+            case "demo":
+            default:
+                json = "{\"title\":\"Auto Bug: Unexpected behavior\",\"description\":\"Generated from demo mode.\",\"steps\":[\"Open app\",\"Go to page\",\"Do action\",\"Observe issue\"],\"severity\":\"Medium\",\"bugType\":\"Functional\"}";
+        }
+        try {
+            com.fasterxml.jackson.databind.JsonNode root = objectMapper.readTree(json);
+            String title = root.path("title").asText("");
+            String description = root.path("description").asText("");
+            java.util.List<String> steps = new java.util.ArrayList<>();
+            if (root.has("steps") && root.get("steps").isArray()) {
+                for (JsonNode n : root.get("steps")) steps.add(n.asText());
+            }
+            String severity = root.path("severity").asText("Medium");
+            String bugType = root.path("bugType").asText("Functional");
+            return new Madfoat.Learning.dto.BugReport(title, description, steps, severity, bugType);
+        } catch (Exception e) {
+            // Fallback to a safe default
+            return new Madfoat.Learning.dto.BugReport(
+                "Auto Bug: Unexpected behavior",
+                (text == null ? "" : text.substring(0, Math.min(200, text.length()))),
+                java.util.Arrays.asList("Open app","Navigate","Perform action","Observe issue"),
+                "Medium",
+                "Functional"
+            );
+        }
     }
 
     // Automation script generator

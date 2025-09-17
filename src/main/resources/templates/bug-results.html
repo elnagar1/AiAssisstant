@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bug Report Results</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark text-light">
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-secondary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">HeroTester</a>
+            <a class="btn btn-outline-light ms-auto" href="/">Home</a>
+        </div>
+    </nav>
+    <div class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card bg-dark border-secondary">
+                    <div class="card-body">
+                        <h3 id="bugTitle" class="card-title"></h3>
+                        <p id="bugDescription" class="text-muted"></p>
+                        <h5>Steps to Reproduce</h5>
+                        <ol id="bugSteps"></ol>
+                        <div class="mt-2">
+                            <span class="badge bg-danger me-2" id="bugSeverity"></span>
+                            <span class="badge bg-info" id="bugType"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function(){
+            try {
+                const data = JSON.parse(localStorage.getItem('bugReport') || '{}');
+                document.getElementById('bugTitle').textContent = data.title || '';
+                document.getElementById('bugDescription').textContent = data.description || '';
+                const stepsList = document.getElementById('bugSteps');
+                stepsList.innerHTML = '';
+                if (Array.isArray(data.steps)) {
+                    data.steps.forEach(s => { const li = document.createElement('li'); li.textContent = s; stepsList.appendChild(li); });
+                }
+                document.getElementById('bugSeverity').textContent = data.severity || '';
+                document.getElementById('bugType').textContent = data.bugType || '';
+            } catch(e) {}
+        })();
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+

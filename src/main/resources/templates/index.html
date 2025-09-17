@@ -1436,19 +1436,8 @@
                     const res = await fetch('/api/bug/generate', { method: 'POST', body: formData });
                     if (!res.ok) throw new Error('Failed to generate bug report');
                     const data = await res.json();
-                    bugTitle.textContent = data.title || '';
-                    bugDescription.textContent = data.description || '';
-                    bugSteps.innerHTML = '';
-                    if (Array.isArray(data.steps)) {
-                        data.steps.forEach(s => {
-                            const li = document.createElement('li');
-                            li.textContent = s;
-                            bugSteps.appendChild(li);
-                        });
-                    }
-                    bugSeverity.textContent = data.severity || '';
-                    bugType.textContent = data.bugType || '';
-                    bugResult.style.display = 'block';
+                    try { localStorage.setItem('bugReport', JSON.stringify(data)); } catch {}
+                    window.location.href = '/bug-results';
                 } catch (err) {
                     bugError.textContent = err.message;
                     bugError.classList.remove('d-none');

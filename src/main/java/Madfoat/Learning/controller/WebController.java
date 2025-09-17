@@ -31,6 +31,11 @@ public class WebController {
         return "chart-cleanup";
     }
 
+    @GetMapping("/bug-results")
+    public String bugResultsPage() {
+        return "bug-results";
+    }
+
     @GetMapping("/api/settings/properties")
     @ResponseBody
     public Map<String, String> getProperties() throws IOException {
