@@ -9,21 +9,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
-import Madfoat.Learning.model.User;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
-import org.springframework.web.reactive.function.client.WebClient;
-import reactor.core.publisher.Mono;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import Madfoat.Learning.model.User;
 
 @Service
 public class AIService {
@@ -47,7 +38,6 @@ public class AIService {
     private final ObjectMapper objectMapper;
     private final UserService userService;
 
-    @Autowired
     public AIService(UserService userService) {
         this.webClient = WebClient.builder().build();
         this.objectMapper = new ObjectMapper();
@@ -135,7 +125,26 @@ public class AIService {
             }
             String severity = root.path("severity").asText("Medium");
             String bugType = root.path("bugType").asText("Functional");
-            return new Madfoat.Learning.dto.BugReport(title, description, steps, severity, bugType);
+            String environment = root.has("environment") ? root.get("environment").asText(null) : null;
+            String expected = root.has("expected") ? root.get("expected").asText(null) : null;
+            String actual = root.has("actual") ? root.get("actual").asText(null) : null;
+            String reporter = root.has("reporter") ? root.get("reporter").asText(null) : null;
+            java.util.List<String> attachments = null;
+            if (root.has("attachments") && root.get("attachments").isArray()) {
+                attachments = new java.util.ArrayList<>();
+                for (JsonNode n : root.get("attachments")) attachments.add(n.asText());
+            }
+            String module = root.has("module") ? root.get("module").asText(null) : null;
+            Boolean reproducible = root.has("reproducible") && !root.get("reproducible").isNull() ? root.get("reproducible").asBoolean() : null;
+            String dateReported = root.has("dateReported") ? root.get("dateReported").asText(null) : null;
+            String version = root.has("version") ? root.get("version").asText(null) : null;
+            String priority = root.has("priority") ? root.get("priority").asText(null) : null;
+            String status = root.has("status") ? root.get("status").asText(null) : null;
+            return new Madfoat.Learning.dto.BugReport(
+                title, description, steps, severity, bugType,
+                environment, expected, actual, reporter, attachments,
+                module, reproducible, dateReported, version, priority, status
+            );
         } catch (Exception e) {
             // Fallback to a safe default
             return new Madfoat.Learning.dto.BugReport(
@@ -145,6 +154,48 @@ public class AIService {
                 "Medium",
                 "Functional"
             );
+        }
+    }
+
+    // New version: returns Map<String, Object> with all AI fields
+    public Map<String, Object> generateBugReportRaw(String text, byte[] imageBytes, String imageFileName) {
+        StringBuilder prompt = new StringBuilder();
+        prompt.append("You are a senior QA. Generate a concise bug report as JSON ONLY. Include all relevant fields you can infer, such as title, description, steps (array), severity, bugType, environment, expected, actual, reporter, attachments, module, reproducible, dateReported, version, priority, status, and any other useful info. No extra text, just pure JSON.\n\n");
+        prompt.append("Input text: \n").append(text == null ? "" : text).append("\n\n");
+        if (imageBytes != null) {
+            prompt.append("An image is attached: ").append(imageFileName == null ? "image" : imageFileName).append(". If relevant, use it for more accurate details.\n");
+        }
+        String provider = aiProvider == null ? "demo" : aiProvider.toLowerCase();
+        String raw;
+        switch (provider) {
+            case "openai": raw = generateWithOpenAIPrompt(prompt.toString()); break;
+            case "ollama": raw = generateWithOllamaPrompt(prompt.toString()); break;
+            case "huggingface": raw = generateWithHuggingFacePrompt(prompt.toString()); break;
+            case "gemini": raw = generateWithGeminiPrompt(prompt.toString()); break;
+            case "demo":
+            default:
+                raw = "{\"title\":\"Auto Bug: Unexpected behavior\",\"description\":\"Generated from demo mode.\",\"steps\":[\"Open app\",\"Go to page\",\"Do action\",\"Observe issue\"],\"severity\":\"Medium\",\"bugType\":\"Functional\"}";
+        }
+        try {
+            // Sanitize: remove code fences and extract JSON substring
+            String cleaned = raw;
+            // Remove triple backtick fences with optional language tag
+            cleaned = cleaned.replaceAll("```[a-zA-Z]*\\n", "").replace("```", "");
+            // Trim and extract JSON object boundaries if extra text exists
+            int start = cleaned.indexOf('{');
+            int end = cleaned.lastIndexOf('}');
+            if (start != -1 && end != -1 && end > start) {
+                cleaned = cleaned.substring(start, end + 1);
+            }
+            // Parse into a type-safe map
+            @SuppressWarnings("unchecked")
+            Map<String, Object> parsed = objectMapper.readValue(cleaned, Map.class);
+            return parsed;
+        } catch (Exception e) {
+            Map<String, Object> error = new java.util.HashMap<>();
+            error.put("error", "Failed to parse AI JSON");
+            error.put("raw", raw);
+            return error;
         }
     }
 
@@ -756,18 +807,6 @@ public class AIService {
             "}\n";
 
         return "```java\n" + testClass + "\n```\n\n```java\n" + pageClass + "\n```";
-    }
-
-    private String matchFirst(String text, String regex) {
-        if (text == null) return null;
-        try {
-            java.util.regex.Pattern p = java.util.regex.Pattern.compile(regex, java.util.regex.Pattern.CASE_INSENSITIVE);
-            java.util.regex.Matcher m = p.matcher(text);
-            if (m.find()) {
-                return m.group(1).trim();
-            }
-        } catch (Exception ignored) {}
-        return null;
     }
 
     private String buildClassNameFromDescription(String description) {

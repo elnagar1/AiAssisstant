@@ -16,36 +16,133 @@
     <div class="container py-4">
         <div class="row justify-content-center">
             <div class="col-lg-8">
+                <div class="card bg-dark border-secondary mb-4">
+                    <div class="card-body">
+                        <div id="bugReportSections"></div>
+                    </div>
+                </div>
                 <div class="card bg-dark border-secondary">
                     <div class="card-body">
-                        <h3 id="bugTitle" class="card-title"></h3>
-                        <p id="bugDescription" class="text-muted"></p>
-                        <h5>Steps to Reproduce</h5>
-                        <ol id="bugSteps"></ol>
-                        <div class="mt-2">
-                            <span class="badge bg-danger me-2" id="bugSeverity"></span>
-                            <span class="badge bg-info" id="bugType"></span>
-                        </div>
+                        <h5 class="mb-3">Raw AI JSON</h5>
+                        <pre id="rawJson" class="bg-black text-light p-3 rounded" style="font-size:0.95em; white-space:pre-wrap;"></pre>
+                        <button class="btn btn-outline-light btn-sm mt-2" onclick="copyRawJson()">Copy JSON</button>
                     </div>
                 </div>
             </div>
         </div>
     </div>
     <script>
+        function renderSection(label, value, opts={}) {
+            if (!value) return '';
+            if (Array.isArray(value)) {
+                if (value.length === 0) return '';
+                return `<div class="mb-3"><h6>${label}</h6><ol>${value.map(v => `<li>${v}</li>`).join('')}</ol></div>`;
+            }
+            if (typeof value === 'object') {
+                // Environment or similar
+                return `<div class="mb-3"><h6>${label}</h6><ul>${Object.entries(value).map(([k,v]) => `<li><strong>${k}:</strong> ${v}</li>`).join('')}</ul></div>`;
+            }
+            if (opts.badge) {
+                let color = 'secondary';
+                if (opts.badge === 'priority') {
+                    if ((value+'').toLowerCase().includes('critical')) color = 'danger';
+                    else if ((value+'').toLowerCase().includes('high')) color = 'warning';
+                    else if ((value+'').toLowerCase().includes('medium')) color = 'info';
+                    else if ((value+'').toLowerCase().includes('low')) color = 'success';
+                }
+                return `<div class="mb-3"><h6>${label}</h6><span class="badge bg-${color}" style="font-size:1em;">${value}</span></div>`;
+            }
+            return `<div class="mb-3"><h6>${label}</h6><div>${value}</div></div>`;
+        }
+        function renderExtraFields(data, usedKeys) {
+            const extras = Object.keys(data).filter(k => !usedKeys.includes(k));
+            if (extras.length === 0) return '';
+            let html = '<div class="mb-3"><h6>Other Details</h6><table class="table table-dark table-bordered table-sm"><tbody>';
+            for (const k of extras) {
+                html += `<tr><th>${k}</th><td>${typeof data[k]==='object'?JSON.stringify(data[k]):data[k]}</td></tr>`;
+            }
+            html += '</tbody></table></div>';
+            return html;
+        }
         (function(){
             try {
                 const data = JSON.parse(localStorage.getItem('bugReport') || '{}');
-                document.getElementById('bugTitle').textContent = data.title || '';
-                document.getElementById('bugDescription').textContent = data.description || '';
-                const stepsList = document.getElementById('bugSteps');
-                stepsList.innerHTML = '';
-                if (Array.isArray(data.steps)) {
-                    data.steps.forEach(s => { const li = document.createElement('li'); li.textContent = s; stepsList.appendChild(li); });
+                const sections = [];
+                const used = [];
+                // Main fields (case-insensitive)
+                const get = (k) => {
+                    const found = Object.keys(data).find(x => x.toLowerCase() === k.toLowerCase());
+                    if (found) used.push(found);
+                    return found ? data[found] : null;
+                };
+                // Title
+                const title = get('title') || get('bugReport') || get('summary');
+                if (title) sections.push(`<h4 class="mb-3">Bug Report: <span class="text-info">${title}</span></h4>`);
+                // Application
+                const app = get('application') || get('app') || get('system');
+                if (app) sections.push(renderSection('Application', app));
+                // Module
+                const module = get('module');
+                if (module) sections.push(renderSection('Module', module));
+                // Description
+                const desc = get('description') || get('desc');
+                if (desc) sections.push(renderSection('Description', desc));
+                // Steps
+                const steps = get('steps') || get('stepsToReproduce') || get('reproSteps');
+                if (steps) sections.push(renderSection('Steps to Reproduce', steps));
+                // Actual
+                const actual = get('actual') || get('actualResult');
+                if (actual) sections.push(renderSection('Actual Result', actual));
+                // Expected
+                const expected = get('expected') || get('expectedResult');
+                if (expected) sections.push(renderSection('Expected Result', expected));
+                // Priority
+                const priority = get('priority');
+                if (priority) sections.push(renderSection('Priority', priority, {badge:'priority'}));
+                // Severity
+                const severity = get('severity');
+                if (severity) sections.push(renderSection('Severity', severity, {badge:'priority'}));
+                // Environment
+                const env = get('environment');
+                if (env) sections.push(renderSection('Environment', env));
+                // OS, Browser, URL (if not inside environment)
+                const os = get('os') || get('operatingSystem');
+                const browser = get('browser');
+                const url = get('url');
+                if (!env && (os || browser || url)) {
+                    let envList = [];
+                    if (os) envList.push(`<li><strong>Operating System:</strong> ${os}</li>`);
+                    if (browser) envList.push(`<li><strong>Browser:</strong> ${browser}</li>`);
+                    if (url) envList.push(`<li><strong>URL:</strong> ${url}</li>`);
+                    sections.push(`<div class="mb-3"><h6>Environment</h6><ul>${envList.join('')}</ul></div>`);
                 }
-                document.getElementById('bugSeverity').textContent = data.severity || '';
-                document.getElementById('bugType').textContent = data.bugType || '';
-            } catch(e) {}
+                // Reporter
+                const reporter = get('reporter');
+                if (reporter) sections.push(renderSection('Reporter', reporter));
+                // Attachments
+                const attachments = get('attachments');
+                if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+                    sections.push(`<div class="mb-3"><h6>Attachments</h6><ul>${attachments.map(a => `<li>${a}</li>`).join('')}</ul></div>`);
+                }
+                // Date Reported
+                const dateReported = get('dateReported');
+                if (dateReported) sections.push(renderSection('Date Reported', dateReported));
+                // Status
+                const status = get('status');
+                if (status) sections.push(renderSection('Status', status));
+                // Any extra fields
+                sections.push(renderExtraFields(data, used));
+                document.getElementById('bugReportSections').innerHTML = sections.join('');
+                // Raw JSON
+                document.getElementById('rawJson').textContent = JSON.stringify(data, null, 2);
+            } catch(e) {
+                document.getElementById('bugReportSections').innerHTML = '<div class="alert alert-danger">Error parsing bug report data.</div>';
+            }
         })();
+        function copyRawJson() {
+            const txt = document.getElementById('rawJson').textContent;
+            if (navigator.clipboard) navigator.clipboard.writeText(txt);
+        }
     </script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
